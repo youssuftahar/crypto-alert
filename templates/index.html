@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تنبيهات العملات الرقمية</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #0f0f0f; color: #fff; padding: 20px; }
+  h1 { font-size: 22px; margin-bottom: 20px; color: #00d4aa; }
+  .card { background: #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  label { font-size: 13px; color: #aaa; display: block; margin-bottom: 6px; }
+  input, select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; font-size: 15px; margin-bottom: 14px; }
+  button { width: 100%; padding: 12px; background: #00d4aa; color: #000; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+  button:hover { background: #00b894; }
+  .alert-item { background: #222; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 14px; }
+  .alert-item.triggered { border: 1px solid #00d4aa; }
+  .price-display { font-size: 28px; font-weight: bold; color: #00d4aa; margin: 10px 0; }
+  .status { font-size: 12px; color: #666; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>🚨 تنبيهات العملات الرقمية</h1>
+
+<div class="card">
+  <label>اسم العملة (بالإنجليزي)</label>
+  <input type="text" id="coinInput" placeholder="مثال: bitcoin, ethereum, solana" />
+  
+  <label>الشرط</label>
+  <select id="dirInput">
+    <option value="above">يصل فوق السعر</option>
+    <option value="below">ينزل تحت السعر</option>
+  </select>
+
+  <label>السعر بالدولار</label>
+  <input type="number" id="targetInput" placeholder="مثال: 100000" />
+
+  <button onclick="addAlert()">إضافة التنبيه</button>
+</div>
+
+<div class="card">
+  <label>السعر الحالي لعملة</label>
+  <input type="text" id="checkCoin" placeholder="اكتب اسم العملة" />
+  <button onclick="checkPrice()" style="background:#333; color:#fff;">تحقق من السعر</button>
+  <div class="price-display" id="priceDisplay"></div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:16px; margin-bottom:14px;">التنبيهات النشطة</h2>
+  <div id="alertsList"></div>
+</div>
+
+<div class="status" id="status">جاري التحميل...</div>
+
+<audio id="alertSound" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3"></audio>
+
+<script>
+async function addAlert() {
+  const coin = document.getElementById('coinInput').value.trim().toLowerCase();
+  const direction = document.getElementById('dirInput').value;
+  const target = document.getElementById('targetInput').value;
+  if (!coin || !target) { alert('أكمل جميع الحقول'); return; }
+  await fetch('/add_alert', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ coin, direction, target })
+  });
+  document.getElementById('coinInput').value = '';
+  document.getElementById('targetInput').value = '';
+  loadAlerts();
+}
+
+async function checkPrice() {
+  const coin = document.getElementById('checkCoin').value.trim().toLowerCase();
+  if (!coin) return;
+  document.getElementById('priceDisplay').textContent = 'جاري التحميل...';
+  const res = await fetch(`/price/${coin}`);
+  const data = await res.json();
+  if (data.price) {
+    document.getElementById('priceDisplay').textContent = `$${data.price.toLocaleString()}`;
+  } else {
+    document.getElementById('priceDisplay').textContent = 'عملة غير موجودة';
+  }
+}
+
+async function loadAlerts() {
+  const res = await fetch('/alerts');
+  const data = await res.json();
+  const list = document.getElementById('alertsList');
+  if (data.length === 0) { list.innerHTML = '<p style="color:#666; font-size:13px;">لا توجد تنبيهات بعد</p>'; return; }
+  list.innerHTML = data.map(a => {
+    const dir = a.direction === 'above' ? 'فوق' : 'تحت';
+    const status = a.triggered ? '✅ تم التنبيه' : '⏳ نشط';
+    return `<div class="alert-item ${a.triggered ? 'triggered' : ''}">
+      ${a.coin.toUpperCase()} ${dir} $${Number(a.target).toLocaleString()} — ${status}
+    </div>`;
+  }).join('');
+}
+
+setInterval(loadAlerts, 10000);
+loadAlerts();
+document.getElementById('status').textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar');
+</script>
+</body>
+</html>
